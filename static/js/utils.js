@@ -497,6 +497,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // 初始化主题
     theme.applyTheme();
 
+    // 初始化移动端导航
+    initMobileNav();
+
     // 全局键盘快捷键
     document.addEventListener('keydown', (e) => {
         // Ctrl/Cmd + K: 聚焦搜索
@@ -513,6 +516,46 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+function initMobileNav() {
+    const toggleButtons = document.querySelectorAll('[data-mobile-nav-toggle]');
+
+    toggleButtons.forEach((button) => {
+        const targetId = button.getAttribute('data-mobile-nav-toggle');
+        const panel = document.getElementById(targetId);
+        if (!panel) return;
+
+        const closeNav = () => {
+            panel.classList.remove('active');
+            button.setAttribute('aria-expanded', 'false');
+            document.body.classList.remove('mobile-nav-open');
+        };
+
+        button.addEventListener('click', () => {
+            const willOpen = !panel.classList.contains('active');
+            document.querySelectorAll('.mobile-nav.active').forEach(nav => nav.classList.remove('active'));
+            document.querySelectorAll('[data-mobile-nav-toggle]').forEach(btn => btn.setAttribute('aria-expanded', 'false'));
+
+            if (willOpen) {
+                panel.classList.add('active');
+                button.setAttribute('aria-expanded', 'true');
+                document.body.classList.add('mobile-nav-open');
+            } else {
+                closeNav();
+            }
+        });
+
+        panel.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', closeNav);
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!panel.contains(e.target) && !button.contains(e.target)) {
+                closeNav();
+            }
+        });
+    });
+}
 
 // 导出全局对象
 window.toast = toast;

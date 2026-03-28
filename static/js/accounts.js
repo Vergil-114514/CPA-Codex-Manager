@@ -29,8 +29,6 @@ const elements = {
     batchValidateBtn: document.getElementById('batch-validate-btn'),
     batchUploadBtn: document.getElementById('batch-upload-btn'),
     batchDeleteBtn: document.getElementById('batch-delete-btn'),
-    exportBtn: document.getElementById('export-btn'),
-    exportMenu: document.getElementById('export-menu'),
     selectAll: document.getElementById('select-all'),
     paginationContainer: document.getElementById('pagination-container'),
     detailModal: document.getElementById('detail-modal'),
@@ -145,35 +143,6 @@ function initEventListeners() {
         renderSelectAllBanner();
     });
 
-    // 分页
-    elements.prevPage.addEventListener('click', () => {
-        if (currentPage > 1 && !isLoading) {
-            currentPage--;
-            loadAccounts();
-        }
-    });
-
-    elements.nextPage.addEventListener('click', () => {
-        const totalPages = Math.ceil(totalAccounts / pageSize);
-        if (currentPage < totalPages && !isLoading) {
-            currentPage++;
-            loadAccounts();
-        }
-    });
-
-    // 导出
-    elements.exportBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        elements.exportMenu.classList.toggle('active');
-    });
-
-    delegate(elements.exportMenu, 'click', '.dropdown-item', (e, target) => {
-        e.preventDefault();
-        const format = target.dataset.format;
-        exportAccounts(format);
-        elements.exportMenu.classList.remove('active');
-    });
-
     // 关闭模态框
     elements.closeModal.addEventListener('click', () => {
         elements.detailModal.classList.remove('active');
@@ -187,8 +156,6 @@ function initEventListeners() {
 
     // 点击其他地方关闭下拉菜单
     document.addEventListener('click', () => {
-        elements.exportMenu.classList.remove('active');
-        uploadMenu.classList.remove('active');
         document.querySelectorAll('#accounts-table .dropdown-menu.active').forEach(m => m.classList.remove('active'));
     });
 }
@@ -600,8 +567,6 @@ function selectAllPagesAction() {
 // 更新批量操作按钮
 function updateBatchButtons() {
     const count = getEffectiveCount();
-    const hasAccounts = totalAccounts > 0;
-
     if (elements.batchDeleteBtn) {
         elements.batchDeleteBtn.disabled = count === 0;
         elements.batchDeleteBtn.textContent = count > 0 ? `删除 (${count})` : '批量删除';
@@ -617,10 +582,6 @@ function updateBatchButtons() {
     if (elements.batchUploadBtn) {
         elements.batchUploadBtn.disabled = count === 0;
         elements.batchUploadBtn.textContent = count > 0 ? `上传 (${count})` : '上传 CPA';
-    }
-    if (elements.exportBtn) {
-        // 只要有账号就可以导出（默认导出当前筛选结果）
-        elements.exportBtn.disabled = !hasAccounts;
     }
 }
 
@@ -813,71 +774,6 @@ async function handleBatchDelete() {
         loadAccounts();
     } catch (error) {
         toast.error('删除失败: ' + error.message);
-    }
-}
-
-// 导出账号
-async function exportAccounts(format) {
-    let count = getEffectiveCount();
-    let payload = buildBatchPayload();
-
-    // 如果没有选择任何账号，则导出当前筛选结果下的所有账号
-    if (count === 0) {
-        if (totalAccounts === 0) {
-            toast.warning('当前列表中没有可导出的数据');
-            return;
-        }
-        count = totalAccounts;
-        payload = {
-            select_all: true,
-            status_filter: elements.filterStatus.value,
-            email_service_filter: elements.filterService.value,
-            search_filter: elements.searchInput.value.trim()
-        };
-    }
-
-    toast.info(`正在导出 ${count} 个账号...`);
-
-    try {
-        const response = await fetch('/api/accounts/export/' + format, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) {
-            throw new Error(`导出失败: HTTP ${response.status}`);
-        }
-
-        // 获取文件内容
-        const blob = await response.blob();
-
-        // 从 Content-Disposition 获取文件名
-        const disposition = response.headers.get('Content-Disposition');
-        let filename = `accounts_${Date.now()}.${(format === 'cpa' || format === 'sub2api') ? 'json' : format}`;
-        if (disposition) {
-            const match = disposition.match(/filename=(.+)/);
-            if (match) {
-                filename = match[1];
-            }
-        }
-
-        // 创建下载链接
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        a.remove();
-
-        toast.success('导出成功');
-    } catch (error) {
-        console.error('导出失败:', error);
-        toast.error('导出失败: ' + error.message);
     }
 }
 

@@ -45,17 +45,40 @@ class DatabaseSessionManager:
         self.database_url = _build_sqlalchemy_url(database_url)
         is_sqlite = self.database_url.startswith("sqlite")
         connect_args = {}
+        engine_kwargs = {
+            "echo": False,
+            "pool_pre_ping": True,
+        }
+
         if is_sqlite:
             connect_args = {
                 "check_same_thread": False,
                 "timeout": 30,  # 等待写锁最多 30 秒，避免立即报错
             }
+        else:
+            pool_size = int(os.environ.get("DB_POOL_SIZE", "20"))
+            max_overflow = int(os.environ.get("DB_MAX_OVERFLOW", "40"))
+            pool_timeout = int(os.environ.get("DB_POOL_TIMEOUT", "60"))
+            pool_recycle = int(os.environ.get("DB_POOL_RECYCLE", "1800"))
+            engine_kwargs.update({
+                "pool_size": pool_size,
+                "max_overflow": max_overflow,
+                "pool_timeout": pool_timeout,
+                "pool_recycle": pool_recycle,
+            })
+
+            logger.info(
+                "初始化数据库连接池: pool_size=%s, max_overflow=%s, pool_timeout=%ss, pool_recycle=%ss",
+                pool_size,
+                max_overflow,
+                pool_timeout,
+                pool_recycle,
+            )
 
         self.engine = create_engine(
             self.database_url,
             connect_args=connect_args,
-            echo=False,
-            pool_pre_ping=True,
+            **engine_kwargs,
         )
 
         # 对 SQLite 开启 WAL 模式：允许读写并发，大幅降低锁冲突

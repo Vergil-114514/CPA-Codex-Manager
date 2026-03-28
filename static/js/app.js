@@ -6,6 +6,7 @@
 // 状态
 let currentTask = null;
 let currentBatch = null;
+let currentBatchMode = 'registration';
 let logPollingInterval = null;
 let batchPollingInterval = null;
 let accountsPollingInterval = null;
@@ -254,6 +255,7 @@ function initEventListeners() {
             activeBatchId = id;
             batchCompleted = false;
             isOutlookBatchMode = (mode === 'outlook_batch');
+            currentBatchMode = mode || 'registration';
 
             // 立即获取并同步当前状态到 UI
             try {
@@ -688,6 +690,7 @@ async function handleBatchRegistration(requestData) {
         const data = await api.post('/registration/batch', requestData);
 
         currentBatch = data;
+        currentBatchMode = 'registration';
         activeBatchId = data.batch_id;  // 保存用于重连
         // 持久化到 sessionStorage，跨页面导航后可恢复
         sessionStorage.setItem('activeTask', JSON.stringify({ batch_id: data.batch_id, mode: 'batch', total: data.count }));
@@ -936,11 +939,15 @@ function updateBatchProgress(data) {
         const lastSuccess = parseInt(elements.batchSuccess.dataset.last || '0');
         const lastFailed = parseInt(elements.batchFailed.dataset.last || '0');
 
+        const isRegistrationBatch = ['registration', 'batch', 'outlook_batch', 'parallel', 'pipeline'].includes(currentBatchMode);
+        const successLabel = isRegistrationBatch ? '账号注册成功' : '账号处理完成';
+        const failedLabel = isRegistrationBatch ? '账号注册失败' : '账号处理失败';
+
         if (data.success > lastSuccess) {
-            addLog('success', `[成功] 第 ${data.success} 个账号注册成功`);
+            addLog('success', `[成功] 第 ${data.success} 个${successLabel}`);
         }
         if (data.failed > lastFailed) {
-            addLog('error', `[失败] 第 ${data.failed} 个账号注册失败`);
+            addLog('error', `[失败] 第 ${data.failed} 个${failedLabel}`);
         }
 
         elements.batchSuccess.dataset.last = data.success;
@@ -1233,6 +1240,7 @@ async function handleOutlookBatchRegistration() {
         }
 
         currentBatch = { batch_id: data.batch_id, ...data };
+        currentBatchMode = 'outlook_batch';
         activeBatchId = data.batch_id;  // 保存用于重连
         // 持久化到 sessionStorage，跨页面导航后可恢复
         sessionStorage.setItem('activeTask', JSON.stringify({ batch_id: data.batch_id, mode: isOutlookBatchMode ? 'outlook_batch' : 'batch', total: data.to_register }));
@@ -1277,6 +1285,9 @@ function connectBatchWebSocket(batchId) {
                 const logType = getLogType(data.message);
                 addLog(logType, data.message);
             } else if (data.type === 'status') {
+            if (data.mode) {
+                currentBatchMode = data.mode;
+            }
                 // 更新进度
                 if (data.total !== undefined) {
                     updateBatchProgress({
@@ -1515,6 +1526,7 @@ async function restoreActiveTask() {
             currentBatch = { batch_id, ...data };
             activeBatchId = batch_id;
             isOutlookBatchMode = (mode === 'outlook_batch');
+            currentBatchMode = mode || 'registration';
             batchCompleted = false;
             batchFinalStatus = null;
             toastShown = false;

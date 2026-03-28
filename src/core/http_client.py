@@ -311,11 +311,11 @@ class OpenAIHTTPClient(HTTPClient):
                 logger.warning(f"⚠️ 当前出口 IP 位于不支持区域: {loc}，Device ID 领取极大概率超时")
                 return False, loc
                 
-            logger.info(f"✅ 当前出口 IP 位于支持区域: {loc}")
+            logger.info(f" 当前出口 IP 位于支持区域: {loc}")
             return True, loc
 
         except Exception as e:
-            logger.error(f"❌ 检查 IP 地理位置失败（可能是网络完全不通）: {e}")
+            logger.error(f" 检查 IP 地理位置失败（可能是网络完全不通）: {e}")
             return False, None
 
     def send_openai_request(

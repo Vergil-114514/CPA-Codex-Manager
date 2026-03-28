@@ -998,7 +998,7 @@ function renderTmServicesTable(services) {
         <tr>
             <td>${escapeHtml(s.name)}</td>
             <td style="font-size:0.85rem;color:var(--text-muted);">${escapeHtml(s.api_url)}</td>
-            <td style="text-align:center;" title="${s.enabled ? '已启用' : '已禁用'}">${s.enabled ? '✅' : '⭕'}</td>
+            <td style="text-align:center;" title="${s.enabled ? '已启用' : '已禁用'}">${s.enabled ? '正常' : '禁用'}</td>
             <td style="text-align:center;">${s.priority}</td>
             <td style="white-space:nowrap;">
                 <button class="btn btn-secondary btn-sm" onclick="editTmService(${s.id})">编辑</button>
@@ -1324,7 +1324,7 @@ function renderSub2ApiServices(services) {
         <tr>
             <td>${escapeHtml(s.name)}</td>
             <td style="font-size:0.85rem;color:var(--text-muted);">${escapeHtml(s.api_url)}</td>
-            <td style="text-align:center;" title="${s.enabled ? '已启用' : '已禁用'}">${s.enabled ? '✅' : '⭕'}</td>
+            <td style="text-align:center;" title="${s.enabled ? '已启用' : '已禁用'}">${s.enabled ? '正常' : '禁用'}</td>
             <td style="text-align:center;">${s.priority}</td>
             <td style="white-space:nowrap;">
                 <button class="btn btn-secondary btn-sm" onclick="editSub2ApiService(${s.id})">编辑</button>

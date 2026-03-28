@@ -219,15 +219,12 @@ def _normalize_email_service_config(
     if 'api_url' in normalized and 'base_url' not in normalized:
         normalized['base_url'] = normalized.pop('api_url')
 
-    if service_type == EmailServiceType.MOE_MAIL:
-        if 'domain' in normalized and 'default_domain' not in normalized:
-            normalized['default_domain'] = normalized.pop('domain')
-    elif service_type in (EmailServiceType.TEMP_MAIL, EmailServiceType.FREEMAIL):
+    if service_type == EmailServiceType.TEMPMAIL:
         if 'default_domain' in normalized and 'domain' not in normalized:
             normalized['domain'] = normalized.pop('default_domain')
-    elif service_type == EmailServiceType.DUCK_MAIL:
-        if 'domain' in normalized and 'default_domain' not in normalized:
-            normalized['default_domain'] = normalized.pop('domain')
+    elif service_type == EmailServiceType.CLOUD_MAIL:
+        if 'default_domain' in normalized and 'domain' not in normalized:
+            normalized['domain'] = normalized.pop('default_domain')
 
     if proxy_url and 'proxy_url' not in normalized:
         normalized['proxy_url'] = proxy_url
@@ -305,26 +302,6 @@ def _run_sync_registration_task(task_uuid: str, email_service_type: str, proxy: 
                         "max_retries": settings.tempmail_max_retries,
                         "proxy_url": actual_proxy_url,
                     }
-                elif service_type == EmailServiceType.MOE_MAIL:
-                    # 检查数据库中是否有可用的自定义域名服务
-                    from ...database.models import EmailService as EmailServiceModel
-                    db_service = db.query(EmailServiceModel).filter(
-                        EmailServiceModel.service_type == "moe_mail",
-                        EmailServiceModel.enabled == True
-                    ).order_by(EmailServiceModel.priority.asc()).first()
-
-                    if db_service and db_service.config:
-                        config = _normalize_email_service_config(service_type, db_service.config, actual_proxy_url)
-                        crud.update_registration_task(db, task_uuid, email_service_id=db_service.id)
-                        logger.info(f"使用数据库自定义域名服务: {db_service.name}")
-                    elif settings.custom_domain_base_url and settings.custom_domain_api_key:
-                        config = {
-                            "base_url": settings.custom_domain_base_url,
-                            "api_key": settings.custom_domain_api_key.get_secret_value() if settings.custom_domain_api_key else "",
-                            "proxy_url": actual_proxy_url,
-                        }
-                    else:
-                        raise ValueError("没有可用的自定义域名邮箱服务，请先在设置中配置")
                 elif service_type == EmailServiceType.OUTLOOK:
                     # 检查数据库中是否有可用的 Outlook 账户
                     from ...database.models import EmailService as EmailServiceModel, Account
@@ -357,48 +334,20 @@ def _run_sync_registration_task(task_uuid: str, email_service_type: str, proxy: 
                         logger.info(f"使用数据库 Outlook 账户: {selected_service.name}")
                     else:
                         raise ValueError("所有 Outlook 账户都已注册过 OpenAI 账号，请添加新的 Outlook 账户")
-                elif service_type == EmailServiceType.DUCK_MAIL:
+                elif service_type == EmailServiceType.CLOUD_MAIL:
                     from ...database.models import EmailService as EmailServiceModel
 
                     db_service = db.query(EmailServiceModel).filter(
-                        EmailServiceModel.service_type == "duck_mail",
+                        EmailServiceModel.service_type == "cloud_mail",
                         EmailServiceModel.enabled == True
                     ).order_by(EmailServiceModel.priority.asc()).first()
 
                     if db_service and db_service.config:
                         config = _normalize_email_service_config(service_type, db_service.config, actual_proxy_url)
                         crud.update_registration_task(db, task_uuid, email_service_id=db_service.id)
-                        logger.info(f"使用数据库 DuckMail 服务: {db_service.name}")
+                        logger.info(f"使用数据库 CloudMail 服务: {db_service.name}")
                     else:
-                        raise ValueError("没有可用的 DuckMail 邮箱服务，请先在邮箱服务页面添加服务")
-                elif service_type == EmailServiceType.FREEMAIL:
-                    from ...database.models import EmailService as EmailServiceModel
-
-                    db_service = db.query(EmailServiceModel).filter(
-                        EmailServiceModel.service_type == "freemail",
-                        EmailServiceModel.enabled == True
-                    ).order_by(EmailServiceModel.priority.asc()).first()
-
-                    if db_service and db_service.config:
-                        config = _normalize_email_service_config(service_type, db_service.config, actual_proxy_url)
-                        crud.update_registration_task(db, task_uuid, email_service_id=db_service.id)
-                        logger.info(f"使用数据库 Freemail 服务: {db_service.name}")
-                    else:
-                        raise ValueError("没有可用的 Freemail 邮箱服务，请先在邮箱服务页面添加服务")
-                elif service_type == EmailServiceType.IMAP_MAIL:
-                    from ...database.models import EmailService as EmailServiceModel
-
-                    db_service = db.query(EmailServiceModel).filter(
-                        EmailServiceModel.service_type == "imap_mail",
-                        EmailServiceModel.enabled == True
-                    ).order_by(EmailServiceModel.priority.asc()).first()
-
-                    if db_service and db_service.config:
-                        config = _normalize_email_service_config(service_type, db_service.config, actual_proxy_url)
-                        crud.update_registration_task(db, task_uuid, email_service_id=db_service.id)
-                        logger.info(f"使用数据库 IMAP 邮箱服务: {db_service.name}")
-                    else:
-                        raise ValueError("没有可用的 IMAP 邮箱服务，请先在邮箱服务中添加")
+                        raise ValueError("没有可用的 CloudMail 邮箱服务，请先在邮箱服务页面添加并启用")
                 else:
                     config = email_service_config or {}
 
@@ -836,7 +785,7 @@ async def run_batch_pipeline(
             if failed_count > 0:
                 add_batch_log(f"[完成] {service_name} 批量任务完成！成功: {success_count}, 未成功: {failed_count}")
             else:
-                add_batch_log(f"[完成] {service_name} 批量任务完成！✅ 全部成功: {success_count} 个")
+                add_batch_log(f"[完成] {service_name} 批量任务完成！全部成功: {success_count} 个")
             
             add_batch_log(f"[统计] 总耗时: {time_str}, 平均速率: {avg_time:.1f}s/账号")
             update_batch_status(finished=True, status="completed")
@@ -896,7 +845,7 @@ async def start_registration(
     """
     启动注册任务
 
-    - email_service_type: 邮箱服务类型 (tempmail, outlook, moe_mail)
+    - email_service_type: 邮箱服务类型 (tempmail, outlook, cloud_mail)
     - proxy: 代理地址
     - email_service_config: 邮箱服务配置（outlook 需要提供账户信息）
     """
@@ -1196,7 +1145,7 @@ async def get_available_email_services():
     返回所有已启用的邮箱服务，包括：
     - tempmail: 临时邮箱（无需配置）
     - outlook: 已导入的 Outlook 账户
-    - moe_mail: 已配置的自定义域名服务
+    - cloud_mail: 已配置的 CloudMail 服务
     """
     from ...database.models import EmailService as EmailServiceModel
     from ...config.settings import get_settings
@@ -1214,31 +1163,6 @@ async def get_available_email_services():
             }]
         },
         "outlook": {
-            "available": False,
-            "count": 0,
-            "services": []
-        },
-        "moe_mail": {
-            "available": False,
-            "count": 0,
-            "services": []
-        },
-        "temp_mail": {
-            "available": False,
-            "count": 0,
-            "services": []
-        },
-        "duck_mail": {
-            "available": False,
-            "count": 0,
-            "services": []
-        },
-        "freemail": {
-            "available": False,
-            "count": 0,
-            "services": []
-        },
-        "imap_mail": {
             "available": False,
             "count": 0,
             "services": []

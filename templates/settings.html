@@ -67,6 +67,38 @@
             background: var(--bg-system);
             border-radius: 12px;
         }
+
+        @media (max-width: 768px) {
+            .settings-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            .settings-nav {
+                flex-direction: row;
+                overflow-x: auto;
+                padding-bottom: 4px;
+                gap: 8px;
+            }
+
+            .settings-nav-item {
+                white-space: nowrap;
+                flex: 0 0 auto;
+                padding: 10px 14px;
+                background: var(--bg-secondary);
+                border: 1px solid var(--border-light);
+            }
+
+            .settings-content .form-actions[style],
+            .settings-content [style*="display: flex; gap: 12px"] {
+                flex-direction: column !important;
+            }
+
+            .settings-content .form-actions .btn,
+            .settings-content [style*="display: flex; gap: 12px"] .btn {
+                width: 100%;
+            }
+        }
     </style>
 </head>
 
@@ -84,15 +116,30 @@
                 <a href="/settings" class="nav-link active">系统设置</a>
                 <a href="/logout" class="nav-link">退出</a>
             </div>
-            <button class="theme-toggle" onclick="theme.toggle()">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="5" />
-                    <path
-                        d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-                </svg>
-            </button>
+            <div class="nav-actions">
+                <button class="theme-toggle" onclick="theme.toggle()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5" />
+                        <path
+                            d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                    </svg>
+                </button>
+                <button class="mobile-nav-toggle" type="button" data-mobile-nav-toggle="mobile-nav-settings" aria-expanded="false" aria-label="打开导航菜单">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                </button>
+            </div>
         </nav>
+        <div class="mobile-nav" id="mobile-nav-settings">
+            <div class="mobile-nav-links">
+                <a href="/" class="mobile-nav-link">账号注册</a>
+                <a href="/accounts" class="mobile-nav-link">账号管理</a>
+                <a href="/cliproxy-cleaner" class="mobile-nav-link">CPA 检测</a>
+                <a href="/email-services" class="mobile-nav-link">邮箱服务</a>
+                <a href="/settings" class="mobile-nav-link active">系统设置</a>
+                <a href="/logout" class="mobile-nav-link">退出</a>
+            </div>
+        </div>
 
         <main class="container main-content">
             <div class="page-header">
@@ -366,6 +413,10 @@
                     </div>
                 </div>
             </div>
+
+            <footer class="site-footer">
+                设计与开发由 <a href="https://github.com/Maoleio/CPA-Codex-Manager" target="_blank" rel="noopener noreferrer">Maoleio</a>
+            </footer>
         </main>
     </div>
 
@@ -436,7 +487,7 @@
                         <input type="text" id="cpa-service-url" required placeholder="https://api.cpa.com/v1">
                     </div>
                     <div class="form-group">
-                        <label for="cpa-service-token">API 密钥 (Token)</label>
+                        <label for="cpa-service-token">CPA 登录密码</label>
                         <input type="password" id="cpa-service-token" placeholder="已保存密钥将被隐藏">
                     </div>
                     <div class="form-row">

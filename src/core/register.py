@@ -246,7 +246,7 @@ class RegistrationEngine:
                 did = self.session.cookies.get("oai-did")
 
                 if did:
-                    self._log(f"Device ID: {did}")
+                    self._log(f"设备 ID: {did}")
                     return did
 
                 self._log(
@@ -643,7 +643,7 @@ class RegistrationEngine:
     def _get_verification_code(self) -> Optional[str]:
         """获取验证码"""
         try:
-            self._log(f"Awaiting OTP fulfillment for {self.email}")
+            self._log(f"正在等待邮箱 {self.email} 的验证码...")
 
             email_id = self.email_info.get("service_id") if self.email_info else None
             code = self.email_service.get_verification_code(
@@ -655,10 +655,10 @@ class RegistrationEngine:
             )
 
             if code:
-                self._log(f"OTP successfully retrieved: {code}")
+                self._log(f"已成功获取验证码: {code}")
                 return code
             else:
-                self._log("OTP synchronization timeout", "error")
+                self._log("验证码同步超时", "error")
                 return None
 
         except Exception as e:
@@ -680,18 +680,18 @@ class RegistrationEngine:
                 data=code_body,
             )
 
-            self._log(f"OTP validation status: HTTP {response.status_code}")
+            self._log(f"验证码校验状态: HTTP {response.status_code}")
             return response.status_code == 200
 
         except Exception as e:
-            self._log(f"OTP validation error: {e}", "error")
+            self._log(f"验证码校验异常: {e}", "error")
             return False
 
     def _create_user_account(self) -> bool:
         """创建用户账户"""
         try:
             user_info = generate_random_user_info()
-            self._log(f"Generating profile: {user_info['name']}, DOB: {user_info['birthdate']}")
+            self._log(f"正在生成账户资料: {user_info['name']}，生日: {user_info['birthdate']}")
             create_account_body = json.dumps(user_info)
 
             response = self.session.post(
@@ -704,16 +704,16 @@ class RegistrationEngine:
                 data=create_account_body,
             )
 
-            self._log(f"Profile creation status: HTTP {response.status_code}")
+            self._log(f"账户资料创建状态: HTTP {response.status_code}")
 
             if response.status_code != 200:
-                self._log(f"Profile finalization failed: {response.text[:100]}", "warning")
+                self._log(f"账户资料创建失败: {response.text[:100]}", "warning")
                 return False
 
             return True
 
         except Exception as e:
-            self._log(f"Profile creation error: {e}", "error")
+            self._log(f"账户资料创建异常: {e}", "error")
             return False
 
     def _get_workspace_id(self) -> Optional[str]:
@@ -747,18 +747,18 @@ class RegistrationEngine:
 
                 workspace_id = str((workspaces[0] or {}).get("id") or "").strip()
                 if not workspace_id:
-                    self._log("Workspace context parsing failed", "error")
+                    self._log("Workspace 上下文解析失败", "error")
                     return None
 
-                self._log(f"Workspace context synchronized: {workspace_id}")
+                self._log(f"Workspace 上下文已同步: {workspace_id}")
                 return workspace_id
 
             except Exception as e:
-                self._log(f"Auth token decode failed: {e}", "error")
+                self._log(f"授权令牌解码失败: {e}", "error")
                 return None
 
         except Exception as e:
-            self._log(f"Workspace ID retrieval failed: {e}", "error")
+            self._log(f"获取 Workspace ID 失败: {e}", "error")
             return None
 
     def _select_workspace(self, workspace_id: str) -> Optional[str]:
@@ -785,7 +785,7 @@ class RegistrationEngine:
                 self._log("workspace/select 响应里缺少 continue_url", "error")
                 return None
 
-            self._log(f"Continue URL: {continue_url[:100]}...")
+            self._log(f"继续跳转链接: {continue_url[:100]}...")
             return continue_url
 
         except Exception as e:
@@ -843,14 +843,14 @@ class RegistrationEngine:
                 self._log("OAuth 流程未初始化", "error")
                 return None
 
-            self._log("Processing OAuth callback handshake")
+            self._log("正在处理 OAuth 回调...")
             token_info = self.oauth_manager.handle_callback(
                 callback_url=callback_url,
                 expected_state=self.oauth_start.state,
                 code_verifier=self.oauth_start.code_verifier
             )
 
-            self._log("OAuth authorization successful")
+            self._log("OAuth 授权成功")
             return token_info
 
         except Exception as e:
@@ -977,7 +977,7 @@ class RegistrationEngine:
             return result
 
         except Exception as e:
-            self._log(f"CRITICAL: Unhandled execution failure during registration lifecycle: {e}", "error")
+            self._log(f"注册流程发生未处理异常: {e}", "error")
             result.error_message = str(e)
             return result
 

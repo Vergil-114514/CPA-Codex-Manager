@@ -10,10 +10,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let pollingInterval = null;
     let socket = null;
     let patrolStatus = { status: 'stopped' };
+    let patrolOverview = [];
     let cpaServiceMap = {}; // 存储 ID -> 名称映射
     let currentFilter = 'all';
     let searchQuery = '';
     let currentActionNames = []; // 存储正在执行批量动作的账号名
+    let latestPreparationMessage = '正在从 CPA 拉取账号列表...';
+    let currentTaskType = null; // scan | action
 
     // ---------------- DOM 元素 ----------------
     const scanForm = document.getElementById('scan-form');
@@ -41,14 +44,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const progressStatus = document.getElementById('progress-status');
     const progressTitle = document.getElementById('progress-title');
     const patrolStatusLabel = document.getElementById('patrol-status-label');
+    const patrolHistoryTitle = document.getElementById('patrol-history-title');
 
     loadCpaServices();
     loadReplenishEmailServices();
+    loadPatrolOverview();
     loadPatrolStatus(true); // 初始加载需要回填表单
     loadPatrolHistory();
+
+    // 仅自动刷新顶部巡检概览与运行状态，不自动刷新“检测通知”列表。
+    // 否则移动端/桌面端在查看历史通知时会不断被重绘，造成“自动刷新”的观感。
     setInterval(() => {
-        loadPatrolStatus(false); // 定时加载不需要回填表单，只更新运行状态文字
-        loadPatrolHistory();
+        loadPatrolOverview();
+        loadPatrolStatus(false); // 定时加载只更新运行状态文字，不回填表单、不刷新通知列表
     }, 5000);
 
     // ---------------- 导航/过滤/搜索 ----------------
@@ -103,6 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const targetText = data.names ? `选中的 ${data.names.length} 个账号` : '全部账号';
+            currentTaskType = 'scan';
             showProgressModal(`执行 ${mode === 'all' ? '全量检测' : (mode === '401' ? '401 检测' : '额度检测')} (${targetText})...`);
             clearLogs();
             const res = await api.post('/cliproxy/scan', data);
@@ -148,7 +157,12 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('save-patrol-btn').addEventListener('click', async () => savePatrolConfig());
     document.getElementById('test-replenish-btn').addEventListener('click', async () => {
         try {
-            const data = await api.post('/cliproxy/patrol/test-replenish');
+            const serviceId = parseInt(patrolCpaServiceSelect.value || cpaServiceMain.value || cpaServiceSelect.value);
+            if (!serviceId) {
+                toast.warning('请先选择一个 CPA 服务');
+                return;
+            }
+            const data = await api.post('/cliproxy/patrol/test-replenish', { service_id: serviceId });
             toast.success(data.message);
             // 这里可以给个小提示，让用户去首页看
         } catch (err) {
@@ -203,11 +217,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // ---------------- 列表同步逻辑 ----------------
     cpaServiceSelect.addEventListener('change', () => {
         cpaServiceMain.value = cpaServiceSelect.value;
+        clearCurrentCpaView();
         fetchAccountList();
+        syncPatrolSelectionFromMain();
     });
     cpaServiceMain.addEventListener('change', () => {
         cpaServiceSelect.value = cpaServiceMain.value;
+        clearCurrentCpaView();
         fetchAccountList();
+        syncPatrolSelectionFromMain();
+    });
+    patrolCpaServiceSelect.addEventListener('change', () => {
+        clearPatrolHistoryForLoading();
+        loadPatrolStatus(true);
+        loadPatrolHistory();
     });
 
     // 开关状态同步到隐藏域
@@ -226,6 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!serviceId) return;
 
         try {
+            clearAccountSummaryForLoading();
             resultsTableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 60px; color: var(--text-muted);">列表同步中...</td></tr>';
             const data = await api.get(`/cliproxy/list?service_id=${serviceId}&target_type=${targetType}`);
             // 初始同步进去的状态应该是 pending (待检测) 而不是全部在线
@@ -240,9 +264,42 @@ document.addEventListener('DOMContentLoaded', () => {
             updateStats();
             addLog('info', `[同步] 已从 CPA 加载 ${scanResults.length} 个账号元数据`);
         } catch (err) {
+            clearAccountSummaryForLoading();
             addLog('error', `[同步失败] ${err.message}`);
             toast.error('同步账号列表失败');
         }
+    }
+
+    function clearAccountSummaryForLoading() {
+        scanResults = [];
+        statTotal.textContent = '-';
+        stat401.textContent = '-';
+        statExhausted.textContent = '-';
+        statOk.textContent = '-';
+        selectionInfo.textContent = '已选中 0 个';
+        if (selectedCountBold) selectedCountBold.textContent = '0';
+        selectionActions.style.display = 'none';
+        masterCheckbox.checked = false;
+    }
+
+    function clearPatrolHistoryForLoading() {
+        const serviceId = getCurrentPatrolServiceId();
+        const serviceName = cpaServiceMap[serviceId] || `CPA-${serviceId || '-'}`;
+        const container = document.getElementById('patrol-history-list');
+
+        if (patrolHistoryTitle) {
+            patrolHistoryTitle.textContent = `检测通知 [${serviceName}] (最近 20 条)`;
+        }
+
+        if (container) {
+            container.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--text-muted); font-size: 13px;">正在加载 [${serviceName}] 的检测通知...</div>`;
+        }
+    }
+
+    function clearCurrentCpaView() {
+        clearAccountSummaryForLoading();
+        resultsTableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 60px; color: var(--text-muted);">正在加载当前 CPA 的账号列表...</td></tr>';
+        clearPatrolHistoryForLoading();
     }
 
     // ---------------- 列表渲染组件 ----------------
@@ -367,6 +424,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const serviceId = parseInt(document.getElementById('cpa-service').value);
             currentActionNames = names; // 暂存
+            currentTaskType = 'action';
             const res = await api.post('/cliproxy/action', { service_id: serviceId, action: 'delete', names });
             showProgressModal(`执行批量删除操作...`);
             startPolling(res.batch_id, 'action');
@@ -409,8 +467,52 @@ document.addEventListener('DOMContentLoaded', () => {
             cpaServiceSelect.innerHTML = options;
             cpaServiceMain.innerHTML = options;
             patrolCpaServiceSelect.innerHTML = options;
-            if (services.length > 0) fetchAccountList();
+            if (services.length > 0) {
+                const firstId = String(services[0].id);
+                if (!cpaServiceSelect.value) cpaServiceSelect.value = firstId;
+                if (!cpaServiceMain.value) cpaServiceMain.value = firstId;
+                if (!patrolCpaServiceSelect.value) patrolCpaServiceSelect.value = firstId;
+                fetchAccountList();
+                loadPatrolOverview();
+                loadPatrolStatus(true);
+                loadPatrolHistory();
+            }
         } catch (err) { }
+    }
+
+    function getCurrentPatrolServiceId() {
+        return parseInt(patrolCpaServiceSelect.value || cpaServiceMain.value || cpaServiceSelect.value || 0);
+    }
+
+    function syncPatrolSelectionFromMain() {
+        const currentId = cpaServiceMain.value || cpaServiceSelect.value;
+        if (currentId) {
+            patrolCpaServiceSelect.value = currentId;
+            loadPatrolStatus(true);
+            loadPatrolHistory();
+        }
+    }
+
+    async function loadPatrolOverview() {
+        try {
+            const data = await api.get('/cliproxy/patrol/overview');
+            patrolOverview = data.items || [];
+            updatePatrolOverviewLabel();
+        } catch (err) { }
+    }
+
+    function updatePatrolOverviewLabel() {
+        if (!patrolStatusLabel) return;
+        if (!patrolOverview.length) {
+            patrolStatusLabel.textContent = '未运行';
+            return;
+        }
+
+        const parts = patrolOverview.map(item => {
+            const suffix = item.status === 'running' ? '巡检中' : '已开启';
+            return `[${item.service_name}] ${suffix}`;
+        });
+        patrolStatusLabel.textContent = parts.join('\n');
     }
 
     async function loadReplenishEmailServices() {
@@ -436,16 +538,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadPatrolStatus(isInitial = false) {
         try {
-            patrolStatus = await api.get('/cliproxy/patrol/status');
-            const isEnabled = patrolStatus.config?.enabled;
-            const targetId = patrolStatus.config?.service_id;
-            const targetName = targetId ? (cpaServiceMap[targetId] || '...') : '未配置';
-
-            const statusText = isEnabled ? (patrolStatus.status === 'running' ? '正在执行' : '已开启') : '未运行';
-            patrolStatusLabel.textContent = isEnabled ? `[${targetName}] ${statusText}` : '未运行';
+            const serviceId = getCurrentPatrolServiceId();
+            patrolStatus = serviceId ? await api.get(`/cliproxy/patrol/status?service_id=${serviceId}`) : { status: 'stopped' };
+            updatePatrolOverviewLabel();
 
             // 核心修复：只有在初始加载时，或者抽屉处于关闭状态且确定要刷新时，才回填表单
             // 防止用户正在修改配置时，被 5 秒一次的定时器强行重置回旧状态
+            if (isInitial) {
+                const selectedId = serviceId ? String(serviceId) : '';
+                if (selectedId) patrolCpaServiceSelect.value = selectedId;
+            }
+
             if (isInitial && patrolStatus.config) {
                 const cfg = patrolStatus.config;
                 // 手动填充表单
@@ -477,15 +580,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // 触发一次显隐切换
                 toggleReplenishVisibility();
+            } else if (isInitial && !patrolStatus.config) {
+                patrolEnabledToggle.checked = false;
+                const hidden = document.getElementById('patrol-enabled-hidden');
+                if (hidden) hidden.value = 'false';
+                const emergencyToggle = document.getElementById('patrol-emergency-toggle');
+                if (emergencyToggle) emergencyToggle.checked = true;
+                document.getElementById('emergency-threshold-pct').value = 50;
+                if (patrolForm.auto_replenish) patrolForm.auto_replenish.checked = false;
+                toggleEmergencyConfigVisibility();
+                toggleReplenishVisibility();
             }
         } catch (err) { }
     }
 
     async function loadPatrolHistory() {
         try {
-            const data = await api.get('/cliproxy/patrol/history');
-            const history = data.history || [];
+            const serviceId = getCurrentPatrolServiceId();
+            const serviceName = cpaServiceMap[serviceId] || `CPA-${serviceId || '-'}`;
             const container = document.getElementById('patrol-history-list');
+
+            clearPatrolHistoryForLoading();
+
+            const data = await api.get(`/cliproxy/patrol/history?service_id=${serviceId}`);
+            const history = data.history || [];
 
             if (history.length === 0) {
                 container.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-muted); font-size: 13px;">暂无检测记录...</div>';
@@ -520,7 +638,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="notif-content">
                             <div class="notif-time">${item.time}</div>
                             <div class="notif-text">
-                                ${item.emergency ? '自动检测扫描异常结束' : '自动检测扫描结束'} | 
+                                [${item.service_name || serviceName}] ${item.emergency ? '自动检测扫描异常结束' : '自动检测扫描结束'} | 
                                 ${statusInfo}
                                 ${replenishMsg}
                             </div>
@@ -528,7 +646,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 `;
             }).join('');
-        } catch (err) { }
+        } catch (err) {
+            const serviceId = getCurrentPatrolServiceId();
+            const serviceName = cpaServiceMap[serviceId] || `CPA-${serviceId || '-'}`;
+            const container = document.getElementById('patrol-history-list');
+            if (container) {
+                container.innerHTML = `<div style="text-align: center; padding: 40px; color: var(--text-muted); font-size: 13px;">[${serviceName}] 的检测通知加载失败</div>`;
+            }
+        }
     }
 
     function addLog(type, message) {
@@ -537,15 +662,60 @@ document.addEventListener('DOMContentLoaded', () => {
         line.innerHTML = `<span class="log-time">${new Date().toLocaleTimeString()}</span> <span class="log-content">${message}</span>`;
         consoleLog.appendChild(line);
         consoleLog.scrollTop = consoleLog.scrollHeight;
+
+        syncPreparationStatusFromLog(message);
     }
 
     function clearLogs() { consoleLog.innerHTML = ''; }
 
+    function syncPreparationStatusFromLog(message) {
+        if (!message) return;
+
+        if (message.includes('拉取账号列表') || message.includes('获取认证文件列表') || message.includes('快速路径不可用')) {
+            latestPreparationMessage = '正在从 CPA 拉取账号列表...';
+        } else if (message.includes('过滤可检测账号') || message.includes('识别到')) {
+            latestPreparationMessage = '正在过滤可检测账号...';
+        } else if (message.includes('已准备完成，开始并发检测')) {
+            latestPreparationMessage = '已准备完成，开始并发检测...';
+        }
+
+        const currentText = progressStatus.textContent || '';
+        if (currentText.includes('准备') || currentText.includes('同步') || currentText.includes('过滤')) {
+            progressStatus.textContent = latestPreparationMessage;
+        }
+
+        const bgProgress = document.getElementById('background-task-progress');
+        if (bgProgress) {
+            const bgCurrent = bgProgress.textContent || '';
+            if (bgCurrent.includes('同步') || bgCurrent.includes('准备') || bgCurrent.includes('过滤')) {
+                bgProgress.textContent = latestPreparationMessage;
+            }
+        }
+    }
+
     function showProgressModal(title) {
         progressTitle.textContent = title;
         progressBar.style.width = '0%';
-        progressStatus.textContent = '准备下发任务...';
+        latestPreparationMessage = '正在从 CPA 拉取账号列表...';
+        progressStatus.textContent = latestPreparationMessage;
         progressModal.classList.add('active');
+    }
+
+    function buildScanSummary(status) {
+        const summary = status.summary || {};
+        const total = summary.total ?? status.total ?? 0;
+        const invalid401 = summary.invalid_401 ?? 0;
+        const exhausted = summary.invalid_quota ?? 0;
+        const errors = summary.errors ?? 0;
+        const ready = summary.ready ?? Math.max(0, total - invalid401 - exhausted - errors);
+        return `CPA 检测完成：总数 ${total}，就绪 ${ready}，401 ${invalid401}，额度耗尽 ${exhausted}，异常 ${errors}`;
+    }
+
+    function buildActionSummary(status) {
+        const total = status.total || 0;
+        const success = status.success || 0;
+        const failed = status.failed || 0;
+        return `CPA 批量操作完成：总数 ${total}，成功 ${success}，失败 ${failed}`;
     }
 
     function startPolling(batchId, type) {
@@ -559,7 +729,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // 更新模态框进度
                 progressBar.style.width = `${percent}%`;
-                progressStatus.textContent = total > 0 ? `任务进度: ${completed} / ${total}` : '正在准备任务队列...';
+                progressStatus.textContent = total > 0 ? `任务进度: ${completed} / ${total}` : latestPreparationMessage;
 
                 // 更新后台任务栏进度 (如果有)
                 const bgTitle = document.getElementById('background-task-title');
@@ -568,7 +738,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const bgState = document.getElementById('background-task-state');
 
                 if (bgTitle) bgTitle.textContent = progressTitle.textContent;
-                if (bgProgress) bgProgress.textContent = total > 0 ? `任务进度: ${completed} / ${total}` : '正在同步列表...';
+                if (bgProgress) bgProgress.textContent = total > 0 ? `任务进度: ${completed} / ${total}` : latestPreparationMessage;
                 if (bgBar) bgBar.style.width = `${percent}%`;
                 if (bgState) {
                     bgState.textContent = status.finished ? '已结束' : '进行中';
@@ -589,6 +759,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                         renderResults();
                         updateStats();
+                        toast.success(buildScanSummary(status), 5000);
                     } else if (type === 'action') {
                         // 核心优化：不再全量刷新列表，而是从本地数据中移除选中的项目
                         if (currentActionNames && currentActionNames.length > 0) {
@@ -596,18 +767,21 @@ document.addEventListener('DOMContentLoaded', () => {
                             currentActionNames = []; // 清空
                             renderResults();
                             updateStats();
-                            toast.success('批量删除完成');
+                            toast.success(buildActionSummary(status), 5000);
                         } else {
                             fetchAccountList(); // 保底方案
+                            toast.success(buildActionSummary(status), 5000);
                         }
                     }
 
                     // 任务结束，如果后台栏开着，也给个提示
                     if (bgState) bgState.textContent = '完成';
+                    currentTaskType = null;
                 }
             } catch (err) {
                 stopPolling();
                 hideProgressModal();
+                currentTaskType = null;
             }
         }, 2000);
     }

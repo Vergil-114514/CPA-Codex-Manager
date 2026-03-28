@@ -48,12 +48,7 @@ const elements = {
     closeCustomModal: document.getElementById('close-custom-modal'),
     cancelAddCustom: document.getElementById('cancel-add-custom'),
     customSubType: document.getElementById('custom-sub-type'),
-    addMoemailFields: document.getElementById('add-moemail-fields'),
-    addTempmailFields: document.getElementById('add-tempmail-fields'),
-    addDuckmailFields: document.getElementById('add-duckmail-fields'),
-    addFreemailFields: document.getElementById('add-freemail-fields'),
     addCloudmailFields: document.getElementById('add-cloudmail-fields'),
-    addImapFields: document.getElementById('add-imap-fields'),
 
     // 编辑自定义域名模态框
     editCustomModal: document.getElementById('edit-custom-modal'),
@@ -77,16 +72,46 @@ const elements = {
 };
 
 const CUSTOM_SUBTYPE_LABELS = {
-    moemail: '🔗 MoeMail（自定义域名 API）',
-    tempmail: '📮 TempMail（自部署 Cloudflare Worker）',
-    duckmail: '🦆 DuckMail（DuckMail API）',
-    freemail: 'Freemail（自部署 Cloudflare Worker）',
     cloudmail: '☁️ CloudMail（Cloudflare Workers 邮箱）',
-    imap: '📧 IMAP 邮箱（Gmail/QQ/163等）'
 };
+
+const ADD_SUBTYPE_FIELDS_HTML = {
+    cloudmail: `
+        <div id="add-cloudmail-fields">
+            <div class="form-group">
+                <label for="add-cm-base-url">服务地址</label>
+                <input type="text" id="add-cm-base-url" name="cm_base_url" placeholder="https://your-cloudmail.example.com">
+            </div>
+            <div class="form-group">
+                <label for="add-cm-admin-email">管理员邮箱</label>
+                <input type="email" id="add-cm-admin-email" name="cm_admin_email" placeholder="admin@example.com">
+            </div>
+            <div class="form-group">
+                <label for="add-cm-admin-password">管理员密码</label>
+                <input type="text" id="add-cm-admin-password" name="cm_admin_password" placeholder="请输入管理员密码">
+            </div>
+            <div class="form-group">
+                <label for="add-cm-domain">域名</label>
+                <input type="text" id="add-cm-domain" name="cm_domain" placeholder="example.com 或 a.com,b.com">
+            </div>
+        </div>
+    `
+};
+
+function bindIfPresent(element, eventName, handler) {
+    if (element) element.addEventListener(eventName, handler);
+}
+
+function ensureAddCustomFieldsRendered() {
+    const container = document.getElementById('add-fields-container');
+    if (!container || container.children.length > 0) return;
+    container.innerHTML = Object.values(ADD_SUBTYPE_FIELDS_HTML).join('');
+    elements.addCloudmailFields = document.getElementById('add-cloudmail-fields');
+}
 
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
+    ensureAddCustomFieldsRendered();
     loadStats();
     loadOutlookServices();
     loadCustomServices();
@@ -97,21 +122,21 @@ document.addEventListener('DOMContentLoaded', () => {
 // 事件监听
 function initEventListeners() {
     // Outlook 导入展开/收起
-    elements.toggleOutlookImport.addEventListener('click', () => {
+    bindIfPresent(elements.toggleOutlookImport, 'click', () => {
         const isHidden = elements.outlookImportBody.style.display === 'none';
         elements.outlookImportBody.style.display = isHidden ? 'block' : 'none';
         elements.toggleOutlookImport.textContent = isHidden ? '收起' : '展开';
     });
 
     // Outlook 导入
-    elements.outlookImportBtn.addEventListener('click', handleOutlookImport);
-    elements.clearImportBtn.addEventListener('click', () => {
+    bindIfPresent(elements.outlookImportBtn, 'click', handleOutlookImport);
+    bindIfPresent(elements.clearImportBtn, 'click', () => {
         elements.outlookImportData.value = '';
         elements.importResult.style.display = 'none';
     });
 
     // Outlook 全选
-    elements.selectAllOutlook.addEventListener('change', (e) => {
+    bindIfPresent(elements.selectAllOutlook, 'change', (e) => {
         const checkboxes = elements.outlookTable.querySelectorAll('input[type="checkbox"][data-id]');
         checkboxes.forEach(cb => {
             cb.checked = e.target.checked;
@@ -123,10 +148,10 @@ function initEventListeners() {
     });
 
     // Outlook 批量删除
-    elements.batchDeleteOutlookBtn.addEventListener('click', handleBatchDeleteOutlook);
+    bindIfPresent(elements.batchDeleteOutlookBtn, 'click', handleBatchDeleteOutlook);
 
     // 自定义域名全选
-    elements.selectAllCustom.addEventListener('change', (e) => {
+    bindIfPresent(elements.selectAllCustom, 'change', (e) => {
         const checkboxes = elements.customTable.querySelectorAll('input[type="checkbox"][data-id]');
         checkboxes.forEach(cb => {
             cb.checked = e.target.checked;
@@ -137,31 +162,32 @@ function initEventListeners() {
     });
 
     // 添加自定义域名
-    elements.addCustomBtn.addEventListener('click', () => {
+    bindIfPresent(elements.addCustomBtn, 'click', () => {
         elements.addCustomForm.reset();
-        switchAddSubType('moemail');
+        ensureAddCustomFieldsRendered();
+        switchAddSubType('cloudmail');
         elements.addCustomModal.classList.add('active');
     });
-    elements.closeCustomModal.addEventListener('click', () => elements.addCustomModal.classList.remove('active'));
-    elements.cancelAddCustom.addEventListener('click', () => elements.addCustomModal.classList.remove('active'));
-    elements.addCustomForm.addEventListener('submit', handleAddCustom);
+    bindIfPresent(elements.closeCustomModal, 'click', () => elements.addCustomModal.classList.remove('active'));
+    bindIfPresent(elements.cancelAddCustom, 'click', () => elements.addCustomModal.classList.remove('active'));
+    bindIfPresent(elements.addCustomForm, 'submit', handleAddCustom);
 
     // 类型切换（添加表单）
-    elements.customSubType.addEventListener('change', (e) => switchAddSubType(e.target.value));
+    bindIfPresent(elements.customSubType, 'change', (e) => switchAddSubType(e.target.value));
 
     // 编辑自定义域名
-    elements.closeEditCustomModal.addEventListener('click', () => elements.editCustomModal.classList.remove('active'));
-    elements.cancelEditCustom.addEventListener('click', () => elements.editCustomModal.classList.remove('active'));
-    elements.editCustomForm.addEventListener('submit', handleEditCustom);
+    bindIfPresent(elements.closeEditCustomModal, 'click', () => elements.editCustomModal.classList.remove('active'));
+    bindIfPresent(elements.cancelEditCustom, 'click', () => elements.editCustomModal.classList.remove('active'));
+    bindIfPresent(elements.editCustomForm, 'submit', handleEditCustom);
 
     // 编辑 Outlook
-    elements.closeEditOutlookModal.addEventListener('click', () => elements.editOutlookModal.classList.remove('active'));
-    elements.cancelEditOutlook.addEventListener('click', () => elements.editOutlookModal.classList.remove('active'));
-    elements.editOutlookForm.addEventListener('submit', handleEditOutlook);
+    bindIfPresent(elements.closeEditOutlookModal, 'click', () => elements.editOutlookModal.classList.remove('active'));
+    bindIfPresent(elements.cancelEditOutlook, 'click', () => elements.editOutlookModal.classList.remove('active'));
+    bindIfPresent(elements.editOutlookForm, 'submit', handleEditOutlook);
 
     // 临时邮箱配置
-    elements.tempmailForm.addEventListener('submit', handleSaveTempmail);
-    elements.testTempmailBtn.addEventListener('click', handleTestTempmail);
+    bindIfPresent(elements.tempmailForm, 'submit', handleSaveTempmail);
+    bindIfPresent(elements.testTempmailBtn, 'click', handleTestTempmail);
 
     // 点击其他地方关闭更多菜单
     document.addEventListener('click', () => {
@@ -183,13 +209,9 @@ function closeEmailMoreMenu(el) {
 
 // 切换添加表单子类型
 function switchAddSubType(subType) {
-    elements.customSubType.value = subType;
-    elements.addMoemailFields.style.display = subType === 'moemail' ? '' : 'none';
-    elements.addTempmailFields.style.display = subType === 'tempmail' ? '' : 'none';
-    elements.addDuckmailFields.style.display = subType === 'duckmail' ? '' : 'none';
-    elements.addFreemailFields.style.display = subType === 'freemail' ? '' : 'none';
-    elements.addCloudmailFields.style.display = subType === 'cloudmail' ? '' : 'none';
-    elements.addImapFields.style.display = subType === 'imap' ? '' : 'none';
+    ensureAddCustomFieldsRendered();
+    if (elements.customSubType) elements.customSubType.value = 'cloudmail';
+    if (elements.addCloudmailFields) elements.addCloudmailFields.style.display = '';
 }
 
 // 切换编辑表单子类型显示
@@ -246,7 +268,7 @@ async function loadOutlookServices() {
                         ${service.config?.has_oauth ? 'OAuth' : '密码'}
                     </span>
                 </td>
-                <td title="${service.enabled ? '已启用' : '已禁用'}">${service.enabled ? '✅' : '⭕'}</td>
+                <td title="${service.enabled ? '已启用' : '已禁用'}">${service.enabled ? '正常' : '禁用'}</td>
                 <td>${service.priority}</td>
                 <td>${format.date(service.last_used)}</td>
                 <td>
@@ -354,7 +376,7 @@ async function loadCustomServices() {
                 <td>${escapeHtml(service.name)}</td>
                 <td>${getCustomServiceTypeBadge(service._subType)}</td>
                 <td style="font-size: 0.75rem;">${getCustomServiceAddress(service)}</td>
-                <td title="${service.enabled ? '已启用' : '已禁用'}">${service.enabled ? '✅' : '⭕'}</td>
+                <td title="${service.enabled ? '已启用' : '已禁用'}">${service.enabled ? '正常' : '禁用'}</td>
                 <td>${service.priority}</td>
                 <td>${format.date(service.last_used)}</td>
                 <td>
@@ -417,8 +439,8 @@ async function handleOutlookImport() {
         elements.importResult.style.display = 'block';
         elements.importResult.innerHTML = `
             <div class="import-stats">
-                <span>✅ 成功导入: <strong>${result.success || 0}</strong></span>
-                <span>❌ 失败: <strong>${result.failed || 0}</strong></span>
+                <span>成功导入: <strong>${result.success || 0}</strong></span>
+                <span>导入失败: <strong>${result.failed || 0}</strong></span>
             </div>
             ${result.errors?.length ? `<div class="import-errors" style="margin-top: var(--spacing-sm);"><strong>错误详情：</strong><ul>${result.errors.map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul></div>` : ''}
         `;
@@ -441,63 +463,18 @@ async function handleOutlookImport() {
 async function handleAddCustom(e) {
     e.preventDefault();
     const formData = new FormData(e.target);
-    const subType = formData.get('sub_type');
-
-    let serviceType, config;
-    if (subType === 'moemail') {
-        serviceType = 'moe_mail';
-        config = {
-            base_url: formData.get('api_url'),
-            api_key: formData.get('api_key'),
-            default_domain: formData.get('domain')
-        };
-    } else if (subType === 'tempmail') {
-        serviceType = 'temp_mail';
-        config = {
-            base_url: formData.get('tm_base_url'),
-            admin_password: formData.get('tm_admin_password'),
-            domain: formData.get('tm_domain'),
-            enable_prefix: true
-        };
-    } else if (subType === 'duckmail') {
-        serviceType = 'duck_mail';
-        config = {
-            base_url: formData.get('dm_base_url'),
-            api_key: formData.get('dm_api_key'),
-            default_domain: formData.get('dm_domain'),
-            password_length: parseInt(formData.get('dm_password_length'), 10) || 12
-        };
-    } else if (subType === 'freemail') {
-        serviceType = 'freemail';
-        config = {
-            base_url: formData.get('fm_base_url'),
-            admin_token: formData.get('fm_admin_token'),
-            domain: formData.get('fm_domain')
-        };
-    } else if (subType === 'cloudmail') {
-        serviceType = 'cloud_mail';
-        const domainInput = formData.get('cm_domain');
-        // 处理域名：如果包含逗号，转换为数组；否则保持字符串
-        let domain = domainInput;
-        if (domainInput && domainInput.includes(',')) {
-            domain = domainInput.split(',').map(d => d.trim()).filter(d => d);
-        }
-        config = {
-            base_url: formData.get('cm_base_url'),
-            admin_email: formData.get('cm_admin_email'),
-            admin_password: formData.get('cm_admin_password'),
-            domain: domain
-        };
-    } else {
-        serviceType = 'imap_mail';
-        config = {
-            host: formData.get('imap_host'),
-            port: parseInt(formData.get('imap_port'), 10) || 993,
-            use_ssl: formData.get('imap_use_ssl') !== 'false',
-            email: formData.get('imap_email'),
-            password: formData.get('imap_password')
-        };
+    const serviceType = 'cloud_mail';
+    const domainInput = formData.get('cm_domain');
+    let domain = domainInput;
+    if (domainInput && domainInput.includes(',')) {
+        domain = domainInput.split(',').map(d => d.trim()).filter(d => d);
     }
+    const config = {
+        base_url: formData.get('cm_base_url'),
+        admin_email: formData.get('cm_admin_email'),
+        admin_password: formData.get('cm_admin_password'),
+        domain: domain
+    };
 
     const data = {
         service_type: serviceType,

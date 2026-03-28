@@ -145,8 +145,8 @@ scripts\build_windows.bat
 ## Star History
 
 <p align="center">
-  <a href="https://www.star-history.com/#maoleio/CAP-Codex-Manager&Date">
-    <img src="https://api.star-history.com/svg?repos=maoleio/CAP-Codex-Manager&type=Date" alt="Star History Chart" />
+  <a href="https://www.star-history.com/#maoleio/CPA-Codex-Manager&Date">
+    <img src="https://api.star-history.com/svg?repos=maoleio/CPA-Codex-Manager&type=Date" alt="Star History Chart" />
   </a>
 </p>
 

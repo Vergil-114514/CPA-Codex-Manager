@@ -422,7 +422,7 @@ class CloudMailService(BaseEmailService):
                         match = re.search(pattern, clean_content)
                         if match:
                             code = match.group(1)
-                            print(f"[CloudMail] ✅ 找到验证码: {code}", flush=True)
+                            print(f"[CloudMail] 找到验证码: {code}", flush=True)
                             sys.stdout.flush()
                             seen_ids.add(email_id)
                             self.update_status(True)

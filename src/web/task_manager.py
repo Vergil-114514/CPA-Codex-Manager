@@ -41,6 +41,9 @@ _batch_status: Dict[str, dict] = {}
 _batch_logs: Dict[str, List[str]] = defaultdict(list)
 _batch_locks: Dict[str, threading.Lock] = {}
 
+TASK_RETENTION_SECONDS = 60
+BATCH_RETENTION_SECONDS = 90
+
 
 def _get_log_lock(task_uuid: str) -> threading.Lock:
     """线程安全地获取或创建任务日志锁"""
@@ -68,8 +71,8 @@ class TaskManager:
         """获取所有活跃的批量任务"""
         active_batches = []
         for batch_id, status in _batch_status.items():
-            # 只要不是已完成的且存在 ID
-            if not status.get("finished", False):
+            # 只返回未完成且允许在首页监控列表中展示的任务
+            if not status.get("finished", False) and status.get("monitor_visible", True):
                 active_batches.append({
                     "batch_id": batch_id,
                     "mode": status.get("mode", "batch"),
@@ -236,16 +239,40 @@ class TaskManager:
             except Exception as e:
                 logger.warning(f"广播状态失败: {e}")
 
+        if status in {"completed", "failed", "cancelled"}:
+            _task_status[task_uuid]["finished"] = True
+            self.schedule_task_cleanup(task_uuid)
+
     def get_status(self, task_uuid: str) -> Optional[dict]:
         """获取任务状态"""
         return _task_status.get(task_uuid)
 
     def cleanup_task(self, task_uuid: str):
         """清理任务数据"""
-        # 保留日志队列一段时间，以便后续查询
-        # 只清理取消标志
-        if task_uuid in _task_cancelled:
-            del _task_cancelled[task_uuid]
+        with _ws_lock:
+            _ws_connections.pop(task_uuid, None)
+            _ws_sent_index.pop(task_uuid, None)
+        _task_cancelled.pop(task_uuid, None)
+        _task_status.pop(task_uuid, None)
+        with _meta_lock:
+            _log_locks.pop(task_uuid, None)
+        _log_queues.pop(task_uuid, None)
+
+    def schedule_task_cleanup(self, task_uuid: str, delay: int = TASK_RETENTION_SECONDS):
+        """延迟清理单任务缓存，给前端留出收尾展示时间"""
+        status = _task_status.get(task_uuid)
+        if not status:
+            return
+        if status.get("cleanup_scheduled"):
+            return
+        status["cleanup_scheduled"] = True
+
+        async def _cleanup_later():
+            await asyncio.sleep(delay)
+            self.cleanup_task(task_uuid)
+
+        if self._loop and self._loop.is_running():
+            self._loop.create_task(_cleanup_later())
 
     # ============== 批量任务管理 ==============
 
@@ -270,6 +297,7 @@ class TaskManager:
             "skipped": 0,
             "current_index": 0,
             "finished": False,
+            "monitor_visible": True,
             "description": description,
             "timestamp": datetime.now().isoformat()
         }
@@ -334,6 +362,10 @@ class TaskManager:
             except Exception as e:
                 logger.warning(f"广播批量状态失败: {e}")
 
+        if _batch_status[batch_id].get("finished") or _batch_status[batch_id].get("status") in {"completed", "failed", "cancelled"}:
+            _batch_status[batch_id]["finished"] = True
+            self.schedule_batch_cleanup(batch_id)
+
     async def _broadcast_batch_status(self, batch_id: str):
         """广播批量任务状态"""
         with _ws_lock:
@@ -372,6 +404,33 @@ class TaskManager:
             _batch_status[batch_id]["cancelled"] = True
             _batch_status[batch_id]["status"] = "cancelling"
             logger.info(f"批量任务 {batch_id} 已标记为取消")
+
+    def cleanup_batch(self, batch_id: str):
+        """清理批量任务缓存"""
+        key = f"batch_{batch_id}"
+        with _ws_lock:
+            _ws_connections.pop(key, None)
+            _ws_sent_index.pop(key, None)
+        with _meta_lock:
+            _batch_locks.pop(batch_id, None)
+        _batch_logs.pop(batch_id, None)
+        _batch_status.pop(batch_id, None)
+
+    def schedule_batch_cleanup(self, batch_id: str, delay: int = BATCH_RETENTION_SECONDS):
+        """延迟清理批量任务缓存，给前端留出收尾展示时间"""
+        status = _batch_status.get(batch_id)
+        if not status:
+            return
+        if status.get("cleanup_scheduled"):
+            return
+        status["cleanup_scheduled"] = True
+
+        async def _cleanup_later():
+            await asyncio.sleep(delay)
+            self.cleanup_batch(batch_id)
+
+        if self._loop and self._loop.is_running():
+            self._loop.create_task(_cleanup_later())
 
     def register_batch_websocket(self, batch_id: str, websocket):
         """注册批量任务 WebSocket 连接"""

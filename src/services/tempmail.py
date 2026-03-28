@@ -108,7 +108,7 @@ class TempmailService(BaseEmailService):
             }
             self._email_cache[email] = email_info
 
-            logger.info(f"Tempmail.lol 邮箱创建成功，新鲜热乎: {email}")
+            logger.info(f"Tempmail.lol 邮箱创建成功: {email}")
             self.update_status(True)
             return email_info
 
@@ -152,7 +152,7 @@ class TempmailService(BaseEmailService):
             logger.warning(f"邮箱 {email} 没有 token，无法获取验证码")
             return None
 
-        logger.info(f"正在等邮箱 {email} 的验证码，邮差应该在路上了...")
+        logger.info(f"正在等待邮箱 {email} 的验证码...")
 
         start_time = time.time()
         seen_ids = set()
@@ -208,7 +208,7 @@ class TempmailService(BaseEmailService):
                     match = re.search(pattern, content)
                     if match:
                         code = match.group(1)
-                        logger.info(f"找到验证码了，六位嘉宾登场: {code}")
+                        logger.info(f"已获取验证码: {code}")
                         self.update_status(True)
                         return code
 

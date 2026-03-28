@@ -14,6 +14,10 @@
             font-size: 13px;
         }
 
+        .account-stats-grid {
+            grid-template-columns: repeat(5, 1fr);
+        }
+
         .toolbar {
             display: flex;
             gap: 16px;
@@ -25,6 +29,68 @@
             display: flex;
             gap: 8px;
             align-items: center;
+        }
+
+        .toolbar-actions {
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        @media (max-width: 768px) {
+            .toolbar,
+            .toolbar-group,
+            .filter-group {
+                flex-direction: column;
+                align-items: stretch !important;
+            }
+
+            .toolbar {
+                gap: 12px;
+            }
+
+            .toolbar-group {
+                width: 100%;
+            }
+
+            .toolbar-actions {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px;
+            }
+
+            .toolbar-group > *,
+            .filter-group > *,
+            .toggle-group {
+                width: 100% !important;
+                margin-left: 0 !important;
+            }
+
+            .toggle-group {
+                justify-content: space-between;
+                padding: 10px 12px;
+                border: 1px solid var(--border-light);
+                border-radius: 14px;
+                background: var(--bg-system);
+            }
+
+            #pagination-container {
+                padding: 18px 16px !important;
+                flex-wrap: wrap;
+            }
+
+            .account-stats-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .toolbar-actions {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .account-stats-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            }
         }
     </style>
 </head>
@@ -44,15 +110,30 @@
                 <a href="/settings" class="nav-link">系统设置</a>
                 <a href="/logout" class="nav-link">退出</a>
             </div>
-            <button class="theme-toggle" onclick="theme.toggle()">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="5" />
-                    <path
-                        d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-                </svg>
-            </button>
+            <div class="nav-actions">
+                <button class="theme-toggle" onclick="theme.toggle()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5" />
+                        <path
+                            d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                    </svg>
+                </button>
+                <button class="mobile-nav-toggle" type="button" data-mobile-nav-toggle="mobile-nav-accounts" aria-expanded="false" aria-label="打开导航菜单">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                </button>
+            </div>
         </nav>
+        <div class="mobile-nav" id="mobile-nav-accounts">
+            <div class="mobile-nav-links">
+                <a href="/" class="mobile-nav-link">账号注册</a>
+                <a href="/accounts" class="mobile-nav-link active">账号管理</a>
+                <a href="/cliproxy-cleaner" class="mobile-nav-link">CPA 检测</a>
+                <a href="/email-services" class="mobile-nav-link">邮箱服务</a>
+                <a href="/settings" class="mobile-nav-link">系统设置</a>
+                <a href="/logout" class="mobile-nav-link">退出</a>
+            </div>
+        </div>
 
         <main class="container main-content">
             <div class="page-header">
@@ -61,7 +142,7 @@
             </div>
 
             <!-- 统计概览 -->
-            <div class="stats-grid" style="grid-template-columns: repeat(5, 1fr);">
+            <div class="stats-grid account-stats-grid">
                 <div class="stat-card">
                     <div class="stat-value" id="total-accounts">0</div>
                     <div class="stat-label">总账号数</div>
@@ -119,22 +200,12 @@
                         </div>
                     </div>
 
-                    <div class="toolbar-group">
+                    <div class="toolbar-group toolbar-actions">
                         <button class="btn btn-secondary btn-sm" id="refresh-btn">刷新列表</button>
                         <button class="btn btn-secondary btn-sm" id="batch-refresh-btn" disabled>刷新 Token</button>
                         <button class="btn btn-secondary btn-sm" id="batch-validate-btn" disabled>验证 Token</button>
                         <button class="btn btn-secondary btn-sm" id="batch-upload-btn" disabled>上传至 CPA</button>
                         <button class="btn btn-danger btn-sm" id="batch-delete-btn" disabled>批量删除</button>
-
-                        <div class="dropdown">
-                            <button class="btn btn-primary btn-sm" id="export-btn" disabled>导出数据</button>
-                            <div class="dropdown-menu" id="export-menu">
-                                <a href="#" class="dropdown-item" data-format="json">导出 JSON</a>
-                                <a href="#" class="dropdown-item" data-format="csv">导出 CSV</a>
-                                <a href="#" class="dropdown-item" data-format="cpa">CPA 格式</a>
-                                <a href="#" class="dropdown-item" data-format="sub2api">Sub2Api 格式</a>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -170,6 +241,10 @@
                     </div>
                 </div>
             </div>
+
+            <footer class="site-footer">
+                设计与开发由 <a href="https://github.com/Maoleio/CPA-Codex-Manager" target="_blank" rel="noopener noreferrer">Maoleio</a>
+            </footer>
         </main>
     </div>
 

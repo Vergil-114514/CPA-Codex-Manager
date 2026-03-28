@@ -20,6 +20,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from ..config.settings import get_settings
 from .routes import api_router
 from .routes.websocket import router as ws_router
+from .routes.cliproxy import auto_patrol_manager
 from .task_manager import task_manager
 
 logger = logging.getLogger(__name__)
@@ -192,6 +193,9 @@ def create_app() -> FastAPI:
         loop = asyncio.get_event_loop()
         task_manager.set_loop(loop)
 
+        # 事件循环就绪后，再决定是否延迟启动自动巡检
+        asyncio.ensure_future(auto_patrol_manager._delayed_start_if_needed())
+
         logger.info("=" * 50)
         logger.info(f"Codex 自动化注册 + CPA 账号管理系统 v1.0.0 启动中")
         logger.info(f"调试模式: {settings.debug}")
@@ -201,6 +205,7 @@ def create_app() -> FastAPI:
     @app.on_event("shutdown")
     async def shutdown_event():
         """应用关闭事件"""
+        auto_patrol_manager.stop()
         logger.info("应用关闭，今天先收摊啦")
 
     return app
